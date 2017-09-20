@@ -292,9 +292,9 @@ func (b byFrameNumber) Less(xi, yi int) bool {
 
 // Parses and returns an AsepriteFile. Your starting point.
 
-func ParseJson(filename string) AsepriteFile {
+func New(aseJSONFilePath string) AsepriteFile {
 
-	file := readFile(filename)
+	file := readFile(aseJSONFilePath)
 
 	ase := AsepriteFile{}
 	ase.Animations = make([]AsepriteAnimation, 0)
