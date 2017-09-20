@@ -9,11 +9,11 @@ Go. GoAseprite also makes use of tidwall's nice [gjson](https://github.com/tidwa
 
 # How To Use
 
-Usage is pretty straightforward. You export a sprite sheet from Aseprite (Ctrl+E), with a vertical or horizontal strip and an Output File, JSON data checked, and the values set to Hash with Frame Tags on.
+Usage is pretty straightforward. You export a sprite sheet from Aseprite (Ctrl+E), with a vertical or horizontal strip and an Output File, JSON data checked, and the values set to Hash with Frame Tags on (the default).
 
-For using with your project, you'll call goaseprite.ParseJson() with the argument of where to find the outputted Aseprite JSON data file. The function will return a goaseprite.AsepriteFile struct. The File struct represents "home" for an animation - it's from here that you control animation playback and check tags. Since each instance of a File has playback specific variables and values, it's best not to share these across multiple instances (unless they are supposed to share animations).
+For use with your project, you'll call goaseprite.ParseJson() with a string argument of where to find the outputted Aseprite JSON data file. The function will return a goaseprite.AsepriteFile struct. It's from here that you control animation playback and check tags. Since each instance of an AsepriteFile struct has playback specific variables and values, it's best not to share these across multiple instances (unless they are supposed to share animation playback).
 
-After you have a File, you can just call its `Update()` function with an argument of delta time to get it updating. Here's a quick pseudo-example (pretty close to being correct) using [raylib-go](https://github.com/gen2brain/raylib-go):
+After you have an AsepriteFile, you can just call its `Update()` function with an argument of delta time to get it updating, and call `GetFrameXY()` to get the X and Y position of the current frame on the sprite sheet. Here's a quick pseudo-example using [raylib-go](https://github.com/gen2brain/raylib-go):
 
 ```go
 package main
@@ -28,16 +28,16 @@ func NewPlayer() *Player {
 
     player := Player{}
     
-    // ParseJson returns an goaseprite.File, assuming it finds the JSON file
+    // ParseJson returns an goaseprite.AsepriteFile, assuming it finds the JSON file
     player.Ase = goaseprite.ParseJson("assets/graphics/Player.json")
     
-    // File.ImagePath will be relative to the JSON file
+    // AsepriteFile.ImagePath will be relative to the JSON file
     player.Texture = raylib.LoadTexture(player.Ase.ImagePath)
     
     // Set up the texture rectangle for drawing the sprite
     player.TextureRect = raylib.Rectangle{0, 0, player.Ase.FrameWidth, player.Ase.FrameHeight}
     
-    // Sets up the animation file's Play animation to play
+    // Queues up the "Play" animation
     player.Ase.Play("Idle")
     
     return &player
@@ -46,22 +46,22 @@ func NewPlayer() *Player {
 
 func (this *Player) Update() {
     
-    // Call this every frame with the delta-time
-    this.ase.Update(raylib.GetFrameTime())
+    // Call this every frame with the delta-time (time since the last frame)
+    this.Ase.Update(raylib.GetFrameTime())
     
     // Set up the source rectangle for drawing the sprite (on the sprite sheet)
-    this.TextureRect.X, this.TextureRect.Y = this.ase.GetFrameXY()
+    this.TextureRect.X, this.TextureRect.Y = this.Ase.GetFrameXY()
 }
 
 func (this *Player) Draw() {
-	// And draw it~!
+    // And draw it~!
     raylib.DrawTextureRec(
-        this.Texture,
-        this.TextureRect,
-        raylib.Vector2{0, 0},
-        raylib.White)
+    this.Texture,
+    this.TextureRect,
+    raylib.Vector2{0, 0},
+    raylib.White)
 }
 
 ```
 
-Take a look at the Wiki for more information on the API.
+Take a look at the Wiki for more information on the API!
