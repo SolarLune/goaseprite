@@ -22,26 +22,26 @@ const (
 	ASEPRITE_PLAY_PINGPONG = "pingpong"
 )
 
-type Frame struct {
+type AsepriteFrame struct {
 	X        int32
 	Y        int32
 	Duration float32
 }
 
-type Animation struct {
+type AsepriteAnimation struct {
 	Name      string
 	Start     int32
 	End       int32
 	Direction string
 }
 
-type File struct {
+type AsepriteFile struct {
 	ImagePath        string
 	FrameWidth       int32
 	FrameHeight      int32
-	Frames           []Frame
-	Animations       []Animation
-	CurrentAnimation *Animation
+	Frames           []AsepriteFrame
+	Animations       []AsepriteAnimation
+	CurrentAnimation *AsepriteAnimation
 	frameCounter     float32
 	CurrentFrame     int32
 	prevCurrentFrame int32
@@ -51,7 +51,9 @@ type File struct {
 	pingpongedOnce   bool
 }
 
-func (this *File) Play(animName string) {
+// Queues playback of the specified animation (assuming it can be found).
+
+func (this *AsepriteFile) Play(animName string) {
 	cur := this.GetAnimation(animName)
 	if cur == nil {
 		log.Fatal(`Error: Animation named "` + animName + `" not found in Aseprite file!`)
@@ -66,14 +68,17 @@ func (this *File) Play(animName string) {
 	}
 }
 
-func (this *File) Update(deltaTime float32) {
+// Steps the file forward in time, updating the currently playing
+// animation (and also handling looping).
+
+func (this *AsepriteFile) Update(deltaTime float32) {
 
 	this.PrevFrame = this.prevCurrentFrame
 	this.prevCurrentFrame = this.CurrentFrame
 
 	if this.CurrentAnimation != nil {
 
-		this.frameCounter += deltaTime
+		this.frameCounter += deltaTime * this.PlaySpeed
 
 		anim := this.CurrentAnimation
 
@@ -124,7 +129,10 @@ func (this *File) Update(deltaTime float32) {
 
 }
 
-func (this *File) GetAnimation(animName string) *Animation {
+// Returns a pointer to an AsepriteAnimation of the desired name. If it can't
+// be found, it will return `nil`.
+
+func (this *AsepriteFile) GetAnimation(animName string) *AsepriteAnimation {
 
 	for index := range this.Animations {
 		anim := &this.Animations[index]
@@ -137,7 +145,10 @@ func (this *File) GetAnimation(animName string) *Animation {
 
 }
 
-func (this *File) GetFrameXY() (int32, int32) {
+// Returns the current frame's X and Y coordinates on the source sprite sheet
+// for drawing the sprite.
+
+func (this *AsepriteFile) GetFrameXY() (int32, int32) {
 
 	var frameX, frameY int32 = -1, -1
 
@@ -152,7 +163,9 @@ func (this *File) GetFrameXY() (int32, int32) {
 
 }
 
-func (this *File) IsPlaying(animName string) bool {
+// Returns if the named animation is playing.
+
+func (this *AsepriteFile) IsPlaying(animName string) bool {
 
 	if this.CurrentAnimation != nil {
 		if this.CurrentAnimation.Name == animName {
@@ -163,7 +176,10 @@ func (this *File) IsPlaying(animName string) bool {
 	return false
 }
 
-func (this *File) TouchingTag(tagName string) bool {
+// Returns if the AsepriteFile's playback is touching a tag (animation) by
+// the specified name.
+
+func (this *AsepriteFile) TouchingTag(tagName string) bool {
 	for _, anim := range this.Animations {
 		if anim.Name == tagName && this.CurrentFrame >= anim.Start && this.CurrentFrame <= anim.End {
 			return true
@@ -172,7 +188,9 @@ func (this *File) TouchingTag(tagName string) bool {
 	return false
 }
 
-func (this *File) TouchingTags() []string {
+// Returns a list of tags the playback is touching.
+
+func (this *AsepriteFile) TouchingTags() []string {
 	anims := []string{}
 	for _, anim := range this.Animations {
 		if this.CurrentFrame >= anim.Start && this.CurrentFrame <= anim.End {
@@ -182,7 +200,9 @@ func (this *File) TouchingTags() []string {
 	return anims
 }
 
-func (this *File) HitTag(tagName string) bool {
+// Returns if the AsepriteFile's playback just touched a tag by the specified name.
+
+func (this *AsepriteFile) HitTag(tagName string) bool {
 	for _, anim := range this.Animations {
 		if anim.Name == tagName && (this.CurrentFrame >= anim.Start && this.CurrentFrame <= anim.End) && (this.PrevFrame < anim.Start || this.PrevFrame > anim.End) {
 			return true
@@ -191,7 +211,9 @@ func (this *File) HitTag(tagName string) bool {
 	return false
 }
 
-func (this *File) HitTags() []string {
+// Returns a list of tags the AsepriteFile just touched.
+
+func (this *AsepriteFile) HitTags() []string {
 	anims := []string{}
 
 	for _, anim := range this.Animations {
@@ -202,7 +224,9 @@ func (this *File) HitTags() []string {
 	return anims
 }
 
-func (this *File) LeftTag(tagName string) bool {
+// Returns if the AsepriteFile's playback just left a tag by the specified name.
+
+func (this *AsepriteFile) LeftTag(tagName string) bool {
 	for _, anim := range this.Animations {
 		if anim.Name == tagName && (this.PrevFrame >= anim.Start && this.PrevFrame <= anim.End) && (this.CurrentFrame < anim.Start || this.CurrentFrame > anim.End) {
 			return true
@@ -211,7 +235,9 @@ func (this *File) LeftTag(tagName string) bool {
 	return false
 }
 
-func (this *File) LeftTags() []string {
+// Returns a list of tags the AsepriteFile just left.
+
+func (this *AsepriteFile) LeftTags() []string {
 	anims := []string{}
 
 	for _, anim := range this.Animations {
@@ -264,12 +290,15 @@ func (b byFrameNumber) Less(xi, yi int) bool {
 	return xv < yv
 }
 
-func ParseJson(filename string) File {
+// Parses and returns an AsepriteFile. Your starting point.
+
+func ParseJson(filename string) AsepriteFile {
 
 	file := readFile(filename)
 
-	ase := File{}
-	ase.Animations = make([]Animation, 0)
+	ase := AsepriteFile{}
+	ase.Animations = make([]AsepriteAnimation, 0)
+	ase.PlaySpeed = 1
 
 	wd, err := os.Getwd()
 
@@ -297,7 +326,7 @@ func ParseJson(filename string) File {
 		frameName = strings.Replace(frameName, ".", `\.`, -1)
 		frameData := gjson.Get(file, "frames."+frameName)
 
-		frame := Frame{}
+		frame := AsepriteFrame{}
 		frame.X = int32(frameData.Get("frame.x").Num)
 		frame.Y = int32(frameData.Get("frame.y").Num)
 		frame.Duration = float32(frameData.Get("duration").Num) / 1000
@@ -313,7 +342,7 @@ func ParseJson(filename string) File {
 
 	for _, anim := range gjson.Get(file, "meta.frameTags").Array() {
 
-		ase.Animations = append(ase.Animations, Animation{
+		ase.Animations = append(ase.Animations, AsepriteAnimation{
 			Name:      anim.Get("name").Str,
 			Start:     int32(anim.Get("from").Num),
 			End:       int32(anim.Get("to").Num),
