@@ -290,20 +290,10 @@ func New(aseJSONFilePath string) AsepriteFile {
 	ase.Animations = make([]AsepriteAnimation, 0)
 	ase.PlaySpeed = 1
 
-	wd, err := os.Getwd()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// TODO -------------------------------------------
-	// - Add multiple operating system support for
-	//	 finding the path of the image
-
-	ase.ImagePath, err = filepath.Rel(wd, "meta.image")
-
-	if err != nil {
-		log.Fatal(err)
+	if path, err := filepath.Abs(gjson.Get(file, "meta.image").String()); err != nil {
+		log.Fatalln(err)
+	} else {
+		ase.ImagePath = path
 	}
 
 	frameNames := []string{}
