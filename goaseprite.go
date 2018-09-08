@@ -281,8 +281,8 @@ func (b byFrameNumber) Less(xi, yi int) bool {
 	return xv < yv
 }
 
-// New Parses and returns an AsepriteFile. Your starting point.
-func New(aseJSONFilePath string) AsepriteFile {
+// Load parses and returns an AsepriteFile. Your starting point.
+func Load(aseJSONFilePath string) AsepriteFile {
 
 	file := readFile(aseJSONFilePath)
 
