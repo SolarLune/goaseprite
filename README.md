@@ -1,4 +1,4 @@
-# GoAseprite
+# goaseprite
 Aseprite JSON loader for Go (Golang)
 
 Yo, 'sup! This is a JSON loader for Aseprite files written in / for Go.
@@ -16,12 +16,12 @@ package main
 
 import (
 	"github.com/gen2brain/raylib-go/raylib"
-	"github.com/solarlune/GoAseprite"
+	ase "github.com/solarlune/GoAseprite"
 )
 
 
 type Player struct {
-    Ase         goaseprite.AsepriteFile
+    Ase         ase.AsepriteFile
     Texture     raylib.Texture2D
     TextureRect raylib.Rectangle
 }
@@ -31,7 +31,7 @@ func NewPlayer() *Player {
     player := Player{}
     
     // goaseprite.New() returns an AsepriteFile, assuming it finds the JSON file
-    player.Ase = goaseprite.New("assets/graphics/Player.json")
+    player.Ase = ase.New("assets/graphics/Player.json")
     
     // AsepriteFile.ImagePath will be relative to the working directory
     player.Texture = raylib.LoadTexture(player.Ase.ImagePath)
