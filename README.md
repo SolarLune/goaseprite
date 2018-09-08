@@ -30,8 +30,8 @@ func NewPlayer() *Player {
 
     player := Player{}
     
-    // goaseprite.New() returns an AsepriteFile, assuming it finds the JSON file
-    player.Ase = ase.New("assets/graphics/Player.json")
+    // goaseprite.Load() returns an AsepriteFile, assuming it finds the JSON file
+    player.Ase = ase.Load("assets/graphics/Player.json")
     
     // AsepriteFile.ImagePath will be relative to the working directory
     player.Texture = raylib.LoadTexture(player.Ase.ImagePath)
