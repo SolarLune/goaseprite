@@ -28,6 +28,14 @@ type Frame struct {
 	Duration float32
 }
 
+// Slice represents a Slice (rectangle) that was defined in Aseprite and exported in the JSON.
+type Slice struct {
+	Name          string
+	Data          string
+	X, Y, W, H    int32
+	StartingFrame int32
+}
+
 // Animation contains details regarding each animation from Aseprite. This represents, essentially, a tag in Aseprite.
 type Animation struct {
 	Name      string
@@ -50,6 +58,7 @@ type File struct {
 	PrevFrame        int32
 	PlaySpeed        float32
 	Playing          bool
+	Slices           []Slice
 	pingpongedOnce   bool
 }
 
@@ -330,6 +339,18 @@ func Load(aseJSONFilePath string) File {
 			End:       int32(anim.Get("to").Num),
 			Direction: anim.Get("direction").Str})
 
+	}
+
+	for _, sliceData := range gjson.Get(file, "meta.slices").Array() {
+		ase.Slices = append(ase.Slices, Slice{
+			Name:          sliceData.Get("name").Str,
+			Data:          sliceData.Get("data").Str,
+			StartingFrame: int32(sliceData.Get("keys.0").Get("frame").Int()),
+			X:             int32(sliceData.Get("keys.0").Get("bounds.x").Int()),
+			Y:             int32(sliceData.Get("keys.0").Get("bounds.y").Int()),
+			W:             int32(sliceData.Get("keys.0").Get("bounds.w").Int()),
+			H:             int32(sliceData.Get("keys.0").Get("bounds.h").Int()),
+		})
 	}
 
 	return ase
