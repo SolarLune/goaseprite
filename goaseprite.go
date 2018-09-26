@@ -146,7 +146,7 @@ func (asf *AsepriteFile) GetAnimation(animName string) *AsepriteAnimation {
 
 // GetFrameXY Returns the current frame's X and Y coordinates on the source sprite sheet
 // for drawing the sprite.
-func (asf *AsepriteFile) GetFrameXY() (float32, float32) {
+func (asf *AsepriteFile) GetFrameXY() (int32, int32) {
 
 	var frameX, frameY int32 = -1, -1
 
@@ -157,7 +157,7 @@ func (asf *AsepriteFile) GetFrameXY() (float32, float32) {
 
 	}
 
-	return float32(frameX), float32(frameY)
+	return frameX, frameY
 
 }
 
