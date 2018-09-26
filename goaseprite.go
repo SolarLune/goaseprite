@@ -13,37 +13,37 @@ import (
 )
 
 const (
-	// AsepritePlayForward plays animations forward
-	AsepritePlayForward = "forward"
-	// AsepritePlayBackward plays animations backwards
-	AsepritePlayBackward = "reverse"
-	// AsepritePlayPingPong plays animation forward then backward
-	AsepritePlayPingPong = "pingpong"
+	// PlayForward plays animations forward
+	PlayForward = "forward"
+	// PlayBackward plays animations backwards
+	PlayBackward = "reverse"
+	// PlayPingPong plays animation forward then backward
+	PlayPingPong = "pingpong"
 )
 
-// AsepriteFrame contains the frame information
-type AsepriteFrame struct {
+// Frame contains timing and position information for the frame on the spritesheet.
+type Frame struct {
 	X        int32
 	Y        int32
 	Duration float32
 }
 
-// AsepriteAnimation contains the details of each tagged animation
-type AsepriteAnimation struct {
+// Animation contains details regarding each animation from Aseprite. This represents, essentially, a tag in Aseprite.
+type Animation struct {
 	Name      string
 	Start     int32
 	End       int32
 	Direction string
 }
 
-// AsepriteFile contains all properties of an exported aseprite file.
-type AsepriteFile struct {
+// File contains all properties of an exported aseprite file.
+type File struct {
 	ImagePath        string
 	FrameWidth       int32
 	FrameHeight      int32
-	Frames           []AsepriteFrame
-	Animations       []AsepriteAnimation
-	CurrentAnimation *AsepriteAnimation
+	Frames           []Frame
+	Animations       []Animation
+	CurrentAnimation *Animation
 	frameCounter     float32
 	CurrentFrame     int32
 	prevCurrentFrame int32
@@ -53,8 +53,8 @@ type AsepriteFile struct {
 	pingpongedOnce   bool
 }
 
-// Play Queues playback of the specified animation (assuming it can be found).
-func (asf *AsepriteFile) Play(animName string) {
+// Play queues playback of the specified animation (assuming it's in the File).
+func (asf *File) Play(animName string) {
 	cur := asf.GetAnimation(animName)
 	if cur == nil {
 		log.Fatal(`Error: Animation named "` + animName + `" not found in Aseprite file!`)
@@ -62,16 +62,16 @@ func (asf *AsepriteFile) Play(animName string) {
 	if asf.CurrentAnimation != cur {
 		asf.CurrentAnimation = cur
 		asf.CurrentFrame = asf.CurrentAnimation.Start
-		if asf.CurrentAnimation.Direction == AsepritePlayBackward {
+		if asf.CurrentAnimation.Direction == PlayBackward {
 			asf.CurrentFrame = asf.CurrentAnimation.End
 		}
 		asf.pingpongedOnce = false
 	}
 }
 
-// Update Steps the file forward in time, updating the currently playing
+// Update steps the file forward in time, updating the currently playing
 // animation (and also handling looping).
-func (asf *AsepriteFile) Update(deltaTime float32) {
+func (asf *File) Update(deltaTime float32) {
 
 	asf.PrevFrame = asf.prevCurrentFrame
 	asf.prevCurrentFrame = asf.CurrentFrame
@@ -86,11 +86,11 @@ func (asf *AsepriteFile) Update(deltaTime float32) {
 
 			asf.frameCounter = 0
 
-			if anim.Direction == AsepritePlayForward {
+			if anim.Direction == PlayForward {
 				asf.CurrentFrame++
-			} else if anim.Direction == AsepritePlayBackward {
+			} else if anim.Direction == PlayBackward {
 				asf.CurrentFrame--
-			} else if anim.Direction == AsepritePlayPingPong {
+			} else if anim.Direction == PlayPingPong {
 				if asf.pingpongedOnce {
 					asf.CurrentFrame--
 				} else {
@@ -101,7 +101,7 @@ func (asf *AsepriteFile) Update(deltaTime float32) {
 		}
 
 		if asf.CurrentFrame > anim.End {
-			if anim.Direction == AsepritePlayPingPong {
+			if anim.Direction == PlayPingPong {
 				asf.pingpongedOnce = !asf.pingpongedOnce
 				asf.CurrentFrame = anim.End - 1
 				if asf.CurrentFrame < anim.Start {
@@ -113,7 +113,7 @@ func (asf *AsepriteFile) Update(deltaTime float32) {
 		}
 
 		if asf.CurrentFrame < anim.Start {
-			if anim.Direction == AsepritePlayPingPong {
+			if anim.Direction == PlayPingPong {
 				asf.pingpongedOnce = !asf.pingpongedOnce
 				asf.CurrentFrame = anim.Start + 1
 				if asf.CurrentFrame > anim.End {
@@ -129,9 +129,9 @@ func (asf *AsepriteFile) Update(deltaTime float32) {
 
 }
 
-// GetAnimation Returns a pointer to an AsepriteAnimation of the desired name. If it can't
+// GetAnimation returns a pointer to an Animation of the desired name. If it can't
 // be found, it will return `nil`.
-func (asf *AsepriteFile) GetAnimation(animName string) *AsepriteAnimation {
+func (asf *File) GetAnimation(animName string) *Animation {
 
 	for index := range asf.Animations {
 		anim := &asf.Animations[index]
@@ -144,9 +144,9 @@ func (asf *AsepriteFile) GetAnimation(animName string) *AsepriteAnimation {
 
 }
 
-// GetFrameXY Returns the current frame's X and Y coordinates on the source sprite sheet
+// GetFrameXY returns the current frame's X and Y coordinates on the source sprite sheet
 // for drawing the sprite.
-func (asf *AsepriteFile) GetFrameXY() (int32, int32) {
+func (asf *File) GetFrameXY() (int32, int32) {
 
 	var frameX, frameY int32 = -1, -1
 
@@ -161,21 +161,18 @@ func (asf *AsepriteFile) GetFrameXY() (int32, int32) {
 
 }
 
-// IsPlaying Returns if the named animation is playing.
-func (asf *AsepriteFile) IsPlaying(animName string) bool {
+// IsPlaying returns if the named animation is playing.
+func (asf *File) IsPlaying(animName string) bool {
 
-	if asf.CurrentAnimation != nil {
-		if asf.CurrentAnimation.Name == animName {
-			return true
-		}
+	if asf.CurrentAnimation != nil && asf.CurrentAnimation.Name == animName {
+		return true
 	}
 
 	return false
 }
 
-// TouchingTag Returns if the AsepriteFile's playback is touching a tag (animation) by
-// the specified name.
-func (asf *AsepriteFile) TouchingTag(tagName string) bool {
+// TouchingTag returns if the File's playback is touching a tag by the specified name.
+func (asf *File) TouchingTag(tagName string) bool {
 	for _, anim := range asf.Animations {
 		if anim.Name == tagName && asf.CurrentFrame >= anim.Start && asf.CurrentFrame <= anim.End {
 			return true
@@ -184,8 +181,8 @@ func (asf *AsepriteFile) TouchingTag(tagName string) bool {
 	return false
 }
 
-// TouchingTags Returns a list of tags the playback is touching.
-func (asf *AsepriteFile) TouchingTags() []string {
+// TouchingTags returns a list of tags the playback is touching.
+func (asf *File) TouchingTags() []string {
 	anims := []string{}
 	for _, anim := range asf.Animations {
 		if asf.CurrentFrame >= anim.Start && asf.CurrentFrame <= anim.End {
@@ -195,8 +192,8 @@ func (asf *AsepriteFile) TouchingTags() []string {
 	return anims
 }
 
-// HitTag Returns if the AsepriteFile's playback just touched a tag by the specified name.
-func (asf *AsepriteFile) HitTag(tagName string) bool {
+// HitTag returns if the File's playback just touched a tag by the specified name.
+func (asf *File) HitTag(tagName string) bool {
 	for _, anim := range asf.Animations {
 		if anim.Name == tagName && (asf.CurrentFrame >= anim.Start && asf.CurrentFrame <= anim.End) && (asf.PrevFrame < anim.Start || asf.PrevFrame > anim.End) {
 			return true
@@ -205,8 +202,8 @@ func (asf *AsepriteFile) HitTag(tagName string) bool {
 	return false
 }
 
-// HitTags Returns a list of tags the AsepriteFile just touched.
-func (asf *AsepriteFile) HitTags() []string {
+// HitTags returns a list of tags the File just touched.
+func (asf *File) HitTags() []string {
 	anims := []string{}
 
 	for _, anim := range asf.Animations {
@@ -217,8 +214,8 @@ func (asf *AsepriteFile) HitTags() []string {
 	return anims
 }
 
-// LeftTag Returns if the AsepriteFile's playback just left a tag by the specified name.
-func (asf *AsepriteFile) LeftTag(tagName string) bool {
+// LeftTag returns if the File's playback just left a tag by the specified name.
+func (asf *File) LeftTag(tagName string) bool {
 	for _, anim := range asf.Animations {
 		if anim.Name == tagName && (asf.PrevFrame >= anim.Start && asf.PrevFrame <= anim.End) && (asf.CurrentFrame < anim.Start || asf.CurrentFrame > anim.End) {
 			return true
@@ -227,8 +224,8 @@ func (asf *AsepriteFile) LeftTag(tagName string) bool {
 	return false
 }
 
-// LeftTags Returns a list of tags the AsepriteFile just left.
-func (asf *AsepriteFile) LeftTags() []string {
+// LeftTags returns a list of tags the File just left.
+func (asf *File) LeftTags() []string {
 	anims := []string{}
 
 	for _, anim := range asf.Animations {
@@ -281,13 +278,14 @@ func (b byFrameNumber) Less(xi, yi int) bool {
 	return xv < yv
 }
 
-// Load parses and returns an AsepriteFile. Your starting point.
-func Load(aseJSONFilePath string) AsepriteFile {
+// Load parses and returns an File for a supplied JSON exported from Aseprite. This is your starting point.
+// goaseprite is set up to read JSONs for sprite sheets exported with the Hash type.
+func Load(aseJSONFilePath string) File {
 
 	file := readFile(aseJSONFilePath)
 
-	ase := AsepriteFile{}
-	ase.Animations = make([]AsepriteAnimation, 0)
+	ase := File{}
+	ase.Animations = make([]Animation, 0)
 	ase.PlaySpeed = 1
 
 	if path, err := filepath.Abs(gjson.Get(file, "meta.image").String()); err != nil {
@@ -310,7 +308,7 @@ func Load(aseJSONFilePath string) AsepriteFile {
 		frameName = strings.Replace(frameName, ".", `\.`, -1)
 		frameData := gjson.Get(file, "frames."+frameName)
 
-		frame := AsepriteFrame{}
+		frame := Frame{}
 		frame.X = int32(frameData.Get("frame.x").Num)
 		frame.Y = int32(frameData.Get("frame.y").Num)
 		frame.Duration = float32(frameData.Get("duration").Num) / 1000
@@ -326,7 +324,7 @@ func Load(aseJSONFilePath string) AsepriteFile {
 
 	for _, anim := range gjson.Get(file, "meta.frameTags").Array() {
 
-		ase.Animations = append(ase.Animations, AsepriteAnimation{
+		ase.Animations = append(ase.Animations, Animation{
 			Name:      anim.Get("name").Str,
 			Start:     int32(anim.Get("from").Num),
 			End:       int32(anim.Get("to").Num),
