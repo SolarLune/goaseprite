@@ -1,3 +1,10 @@
+/*
+Package goaseprite is an Aseprite JSON loader written in Golang.
+
+The package is basically written around using goaseprite.Load() to load in your exported file's JSON data, and then using that to play and
+get the data necessary to display the animations.
+*/
+
 package goaseprite
 
 import (
@@ -21,14 +28,17 @@ const (
 	PlayPingPong = "pingpong"
 )
 
-// Frame contains timing and position information for the frame on the spritesheet.
+// Frame contains timing and position information for the frame on the spritesheet. Note that Duration is in seconds.
 type Frame struct {
 	X        int32
 	Y        int32
 	Duration float32
 }
 
-// Slice represents a Slice (rectangle) that was defined in Aseprite and exported in the JSON.
+// Slice represents a Slice (rectangle) that was defined in Aseprite and exported in the JSON file. Data by default is blank,
+// but can be specified on export from Aseprite to be whatever you need it to be. Note that StartingFrame is what frame of the
+// Aseprite file the animation started on, but in the future this will probably change if actual animation capability is added
+// to slices.
 type Slice struct {
 	Name          string
 	Data          string
@@ -36,7 +46,8 @@ type Slice struct {
 	StartingFrame int32
 }
 
-// Animation contains details regarding each animation from Aseprite. This represents, essentially, a tag in Aseprite.
+// Animation contains details regarding each animation from Aseprite. This also represents a tag in Aseprite and in goaseprite.
+// Direction is a string, and can be assigned one of the playback constants.
 type Animation struct {
 	Name      string
 	Start     int32
@@ -46,20 +57,21 @@ type Animation struct {
 
 // File contains all properties of an exported aseprite file.
 type File struct {
-	ImagePath        string
-	FrameWidth       int32
-	FrameHeight      int32
-	Frames           []Frame
-	Animations       []Animation
-	CurrentAnimation *Animation
-	frameCounter     float32
-	CurrentFrame     int32
-	prevCurrentFrame int32
-	PrevFrame        int32
-	PlaySpeed        float32
-	Playing          bool
-	Slices           []Slice
-	pingpongedOnce   bool
+	ImagePath         string
+	FrameWidth        int32
+	FrameHeight       int32
+	Frames            []Frame
+	Animations        []Animation
+	CurrentAnimation  *Animation
+	frameCounter      float32
+	CurrentFrame      int32
+	prevCurrentFrame  int32
+	PrevFrame         int32
+	PlaySpeed         float32
+	Playing           bool
+	Slices            []Slice
+	pingpongedOnce    bool
+	finishedAnimation bool
 }
 
 // Play queues playback of the specified animation (assuming it's in the File).
@@ -70,6 +82,7 @@ func (asf *File) Play(animName string) {
 	}
 	if asf.CurrentAnimation != cur {
 		asf.CurrentAnimation = cur
+		asf.finishedAnimation = false
 		asf.CurrentFrame = asf.CurrentAnimation.Start
 		if asf.CurrentAnimation.Direction == PlayBackward {
 			asf.CurrentFrame = asf.CurrentAnimation.End
@@ -78,12 +91,13 @@ func (asf *File) Play(animName string) {
 	}
 }
 
-// Update steps the file forward in time, updating the currently playing
-// animation (and also handling looping).
+// Update steps the File forward in time, updating the currently playing animation (and also handling looping).
 func (asf *File) Update(deltaTime float32) {
 
 	asf.PrevFrame = asf.prevCurrentFrame
 	asf.prevCurrentFrame = asf.CurrentFrame
+
+	asf.finishedAnimation = false
 
 	if asf.CurrentAnimation != nil {
 
@@ -118,6 +132,7 @@ func (asf *File) Update(deltaTime float32) {
 				}
 			} else {
 				asf.CurrentFrame = anim.Start
+				asf.finishedAnimation = true
 			}
 		}
 
@@ -125,12 +140,15 @@ func (asf *File) Update(deltaTime float32) {
 			if anim.Direction == PlayPingPong {
 				asf.pingpongedOnce = !asf.pingpongedOnce
 				asf.CurrentFrame = anim.Start + 1
+				asf.finishedAnimation = true
+
 				if asf.CurrentFrame > anim.End {
 					asf.CurrentFrame = anim.End
 				}
 
 			} else {
 				asf.CurrentFrame = anim.End
+				asf.finishedAnimation = true
 			}
 		}
 
@@ -153,8 +171,7 @@ func (asf *File) GetAnimation(animName string) *Animation {
 
 }
 
-// GetFrameXY returns the current frame's X and Y coordinates on the source sprite sheet
-// for drawing the sprite.
+// GetFrameXY returns the current frame's X and Y coordinates on the source sprite sheet for drawing the sprite.
 func (asf *File) GetFrameXY() (int32, int32) {
 
 	var frameX, frameY int32 = -1, -1
@@ -243,6 +260,13 @@ func (asf *File) LeftTags() []string {
 		}
 	}
 	return anims
+}
+
+// FinishedAnimation returns true if the animation is finished playing. When playing forward or backward, it returns true on the
+// frame that the File loops the animation (assuming the File gets Update() called every game frame). When playing using ping-pong,
+// this function will return true when a full loop is finished (when the File plays forwards and then backwards, and loops again).
+func (asf *File) FinishedAnimation() bool {
+	return asf.finishedAnimation
 }
 
 func readFile(filePath string) string {

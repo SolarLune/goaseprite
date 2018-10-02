@@ -1,6 +1,8 @@
 # goaseprite
 Aseprite JSON loader for Go (Golang)
 
+[GoDoc link](https://godoc.org/github.com/SolarLune/goaseprite)
+
 Yo, 'sup! This is a JSON loader for Aseprite files written in / for Go.
 
 ## How To Use
