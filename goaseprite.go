@@ -274,7 +274,7 @@ func readFile(filePath string) string {
 	file, err := os.Open(filePath)
 
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	scanner := bufio.NewScanner(file)
