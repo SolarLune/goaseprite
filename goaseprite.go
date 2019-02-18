@@ -36,14 +36,21 @@ type Frame struct {
 }
 
 // Slice represents a Slice (rectangle) that was defined in Aseprite and exported in the JSON file. Data by default is blank,
-// but can be specified on export from Aseprite to be whatever you need it to be. Note that StartingFrame is what frame of the
-// Aseprite file the animation started on, but in the future this will probably change if actual animation capability is added
-// to slices.
+// but can be specified on export from Aseprite to be whatever you need it to be.
+
 type Slice struct {
-	Name          string
-	Data          string
-	X, Y, W, H    int32
-	StartingFrame int32
+	Name  string
+	Data  string
+	Color int64
+	Keys  []*SliceKey
+}
+
+// SliceKey represents a Slice's size and position in the Aseprite file. An individual Aseprite File can have multiple Slices inside,
+// which can also have multiple frames in which the Slice's position and size changes. The SliceKey's Frame indicates which frame the key is
+// operating on, and should generally also be the same as the index of the SliceKey in the Slice's Keys array.
+type SliceKey struct {
+	Frame      int32
+	X, Y, W, H int32
 }
 
 // Animation contains details regarding each animation from Aseprite. This also represents a tag in Aseprite and in goaseprite.
@@ -69,7 +76,7 @@ type File struct {
 	PrevFrame         int32
 	PlaySpeed         float32
 	Playing           bool
-	Slices            []Slice
+	Slices            []*Slice
 	pingpongedOnce    bool
 	finishedAnimation bool
 }
@@ -171,10 +178,20 @@ func (asf *File) GetAnimation(animName string) *Animation {
 
 }
 
+// HasAnimation returns true if the File has an Animation of the specified name.
+func (asf *File) HasAnimation(animName string) bool {
+	for _, anim := range asf.Animations {
+		if anim.Name == animName {
+			return true
+		}
+	}
+	return false
+}
+
 // GetFrameXY returns the current frame's X and Y coordinates on the source sprite sheet for drawing the sprite.
 func (asf *File) GetFrameXY() (int32, int32) {
 
-	var frameX, frameY int32 = -1, -1
+	var frameX, frameY int32 = 0, 0
 
 	if asf.CurrentAnimation != nil {
 
@@ -313,19 +330,15 @@ func (b byFrameNumber) Less(xi, yi int) bool {
 
 // Load parses and returns an File for a supplied JSON exported from Aseprite. This is your starting point.
 // goaseprite is set up to read JSONs for sprite sheets exported with the Hash type.
-func Load(aseJSONFilePath string) File {
+func Load(aseJSONFilePath string) *File {
 
 	file := readFile(aseJSONFilePath)
 
-	ase := File{}
+	ase := &File{}
 	ase.Animations = make([]Animation, 0)
 	ase.PlaySpeed = 1
 
-	if path, err := filepath.Abs(gjson.Get(file, "meta.image").String()); err != nil {
-		log.Fatalln(err)
-	} else {
-		ase.ImagePath = path
-	}
+	ase.ImagePath = filepath.Clean(gjson.Get(file, "meta.image").String())
 
 	frameNames := []string{}
 
@@ -366,15 +379,26 @@ func Load(aseJSONFilePath string) File {
 	}
 
 	for _, sliceData := range gjson.Get(file, "meta.slices").Array() {
-		ase.Slices = append(ase.Slices, Slice{
-			Name:          sliceData.Get("name").Str,
-			Data:          sliceData.Get("data").Str,
-			StartingFrame: int32(sliceData.Get("keys.0").Get("frame").Int()),
-			X:             int32(sliceData.Get("keys.0").Get("bounds.x").Int()),
-			Y:             int32(sliceData.Get("keys.0").Get("bounds.y").Int()),
-			W:             int32(sliceData.Get("keys.0").Get("bounds.w").Int()),
-			H:             int32(sliceData.Get("keys.0").Get("bounds.h").Int()),
-		})
+
+		color, _ := strconv.ParseInt("0x"+sliceData.Get("color").Str[1:], 0, 64)
+
+		newSlice := &Slice{
+			Name:  sliceData.Get("name").Str,
+			Data:  sliceData.Get("data").Str,
+			Color: color,
+		}
+
+		for _, sdKey := range sliceData.Get("keys").Array() {
+			newSlice.Keys = append(newSlice.Keys, &SliceKey{
+				Frame: int32(sdKey.Get("frame").Int()),
+				X:     int32(sdKey.Get("bounds.x").Int()),
+				Y:     int32(sdKey.Get("bounds.y").Int()),
+				W:     int32(sdKey.Get("bounds.w").Int()),
+				H:     int32(sdKey.Get("bounds.h").Int()),
+			})
+		}
+
+		ase.Slices = append(ase.Slices, newSlice)
 	}
 
 	return ase
