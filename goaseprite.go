@@ -37,7 +37,6 @@ type Frame struct {
 
 // Slice represents a Slice (rectangle) that was defined in Aseprite and exported in the JSON file. Data by default is blank,
 // but can be specified on export from Aseprite to be whatever you need it to be.
-
 type Slice struct {
 	Name  string
 	Data  string
