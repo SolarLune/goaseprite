@@ -1,5 +1,4 @@
 # goaseprite
-Aseprite JSON loader for Go (Golang)
 
 [GoDoc link](https://godoc.org/github.com/SolarLune/goaseprite)
 
@@ -17,15 +16,15 @@ After you have a File, you can just call its `File.Update()` function with an ar
 package main
 
 import (
-	"github.com/gen2brain/raylib-go/raylib"
+	rl "github.com/gen2brain/raylib-go/raylib"
 	ase "github.com/solarlune/GoAseprite"
 )
 
 
 type Player struct {
     Ase         ase.File
-    Texture     raylib.Texture2D
-    TextureRect raylib.Rectangle
+    Texture     rl.Texture2D
+    TextureRect rl.Rectangle
 }
 
 func NewPlayer() *Player {
@@ -36,10 +35,10 @@ func NewPlayer() *Player {
     player.Ase = ase.Load("assets/graphics/Player.json")
     
     // AsepriteFile.ImagePath will be the absolute path to the image file.
-    player.Texture = raylib.LoadTexture(player.Ase.ImagePath)
+    player.Texture = rl.LoadTexture(player.Ase.ImagePath)
     
     // Set up the texture rectangle for drawing the sprite
-    player.TextureRect = raylib.Rectangle{0, 0, player.Ase.FrameWidth, player.Ase.FrameHeight}
+    player.TextureRect = rl.Rectangle{0, 0, player.Ase.FrameWidth, player.Ase.FrameHeight}
     
     // Queues up the "Play" animation
     player.Ase.Play("Idle")
@@ -51,7 +50,7 @@ func NewPlayer() *Player {
 func (this *Player) Update() {
     
     // Call this every frame with the delta-time (time since the last frame)
-    this.Ase.Update(raylib.GetFrameTime())
+    this.Ase.Update(rl.GetFrameTime())
     
     // Set up the source rectangle for drawing the sprite (on the sprite sheet)
     x, y := this.Ase.GetFrameXY()
@@ -61,7 +60,7 @@ func (this *Player) Update() {
 
 func (this *Player) Draw() {
     // And draw it~!
-    raylib.DrawTextureRec(this.Texture, this.TextureRect, raylib.Vector2{0, 0}, raylib.White)
+    rl.DrawTextureRec(this.Texture, this.TextureRect, rl.Vector2{0, 0}, rl.White)
 }
 
 ```
