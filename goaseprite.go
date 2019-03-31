@@ -62,6 +62,14 @@ type Animation struct {
 	Direction string
 }
 
+// Layer contains details regarding the layers exported from Aseprite, including the layer's name (string), opacity (0-255), and
+// blend mode (string).
+type Layer struct {
+	Name      string
+	Opacity   uint8
+	BlendMode string
+}
+
 // File contains all properties of an exported aseprite file.
 type File struct {
 	ImagePath         string
@@ -69,6 +77,7 @@ type File struct {
 	FrameHeight       int32
 	Frames            []Frame
 	Animations        []Animation
+	Layers            []Layer
 	CurrentAnimation  *Animation
 	frameCounter      float32
 	CurrentFrame      int32
@@ -180,12 +189,22 @@ func (asf *File) GetAnimation(animName string) *Animation {
 
 // HasAnimation returns true if the File has an Animation of the specified name.
 func (asf *File) HasAnimation(animName string) bool {
-	for _, anim := range asf.Animations {
-		if anim.Name == animName {
-			return true
+	return asf.GetAnimation(animName) != nil
+}
+
+// GetSlice returns a Slice that has the name specified.
+func (asf *File) GetSlice(sliceName string) *Slice {
+	for _, slice := range asf.Slices {
+		if slice.Name == sliceName {
+			return slice
 		}
 	}
-	return false
+	return nil
+}
+
+// HasSlice returns true if the File has a Slice of the specified name.
+func (asf *File) HasSlice(sliceName string) bool {
+	return asf.GetSlice(sliceName) != nil
 }
 
 // GetFrameXY returns the current frame's X and Y coordinates on the source sprite sheet for drawing the sprite.
@@ -308,26 +327,6 @@ func readFile(filePath string) string {
 
 }
 
-type byFrameNumber []string
-
-func (b byFrameNumber) Len() int {
-	return len(b)
-}
-func (b byFrameNumber) Swap(x, y int) {
-	b[x], b[y] = b[y], b[x]
-}
-func (b byFrameNumber) Less(xi, yi int) bool {
-	x := b[xi]
-	y := b[yi]
-	xfi := strings.LastIndex(x, " ") + 1
-	xli := strings.LastIndex(x, ".")
-	xv, _ := strconv.ParseInt(x[xfi:xli], 10, 32)
-	yfi := strings.LastIndex(y, " ") + 1
-	yli := strings.LastIndex(y, ".")
-	yv, _ := strconv.ParseInt(y[yfi:yli], 10, 32)
-	return xv < yv
-}
-
 // Load parses and returns an File for a supplied JSON exported from Aseprite. This is your starting point.
 // goaseprite is set up to read JSONs for sprite sheets exported with the Hash type.
 func Load(aseJSONFilePath string) *File {
@@ -342,11 +341,25 @@ func Load(aseJSONFilePath string) *File {
 
 	frameNames := []string{}
 
+	for _, key := range gjson.Get(file, "meta.layers").Array() {
+		ase.Layers = append(ase.Layers, Layer{Name: key.Get("name").String(), Opacity: uint8(key.Get("opacity").Int()), BlendMode: key.Get("blendMode").String()})
+	}
+
 	for key := range gjson.Get(file, "frames").Map() {
 		frameNames = append(frameNames, key)
 	}
 
-	sort.Sort(byFrameNumber(frameNames))
+	sort.Slice(frameNames, func(i, j int) bool {
+		x := frameNames[i]
+		y := frameNames[j]
+		xfi := strings.LastIndex(x, " ") + 1
+		xli := strings.LastIndex(x, ".")
+		xv, _ := strconv.ParseInt(x[xfi:xli], 10, 32)
+		yfi := strings.LastIndex(y, " ") + 1
+		yli := strings.LastIndex(y, ".")
+		yv, _ := strconv.ParseInt(y[yfi:yli], 10, 32)
+		return xv < yv
+	})
 
 	for _, key := range frameNames {
 
