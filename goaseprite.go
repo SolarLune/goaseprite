@@ -72,6 +72,7 @@ type Layer struct {
 // File contains all properties of an exported aseprite file.
 type File struct {
 	ImagePath         string
+	Path              string
 	FrameWidth        int32
 	FrameHeight       int32
 	Frames            []Frame
@@ -335,7 +336,7 @@ func Load(aseJSONFilePath string) *File {
 	ase := &File{}
 	ase.Animations = make([]Animation, 0)
 	ase.PlaySpeed = 1
-
+	ase.Path = aseJSONFilePath
 	ase.ImagePath = filepath.Clean(gjson.Get(file, "meta.image").String())
 
 	frameNames := []string{}
