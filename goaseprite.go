@@ -1,14 +1,9 @@
-/*
-Package goaseprite is an Aseprite JSON loader written in Golang.
-
-The package is basically written around using goaseprite.Load() to load in your exported file's JSON data, and then using that to play and
-get the data necessary to display the animations.
-*/
-
+// Package goaseprite is an Aseprite JSON loader written in Golang.
 package goaseprite
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -46,14 +41,14 @@ type Slice struct {
 
 // SliceKey represents a Slice's size and position in the Aseprite file. An individual Aseprite File can have multiple Slices inside,
 // which can also have multiple frames in which the Slice's position and size changes. The SliceKey's Frame indicates which frame the key is
-// operating on, and should generally also be the same as the index of the SliceKey in the Slice's Keys array.
+// operating on.
 type SliceKey struct {
 	Frame      int32
 	X, Y, W, H int32
 }
 
 // Animation contains details regarding each animation from Aseprite. This also represents a tag in Aseprite and in goaseprite.
-// Direction is a string, and can be assigned one of the playback constants.
+// Start and End are the starting and ending frame of the Animation. Direction is a string, and can be assigned one of the playback constants.
 type Animation struct {
 	Name      string
 	Start     int32
@@ -69,7 +64,8 @@ type Layer struct {
 	BlendMode string
 }
 
-// File contains all properties of an exported aseprite file.
+// File contains all properties of an exported aseprite file. ImagePath is the absolute path to the image as reported by the exported
+// Aseprite JSON data. Path is the string used to open the File if it was opened with the Open() function; otherwise, it's blank.
 type File struct {
 	ImagePath         string
 	Path              string
@@ -94,7 +90,7 @@ type File struct {
 func (asf *File) Play(animName string) {
 	cur := asf.GetAnimation(animName)
 	if cur == nil {
-		log.Fatal(`Error: Animation named "` + animName + `" not found in Aseprite file!`)
+		log.Println(`Error: Animation named "` + animName + `" not found in Aseprite file!`)
 	}
 	if asf.CurrentAnimation != cur {
 		asf.CurrentAnimation = cur
@@ -172,8 +168,7 @@ func (asf *File) Update(deltaTime float32) {
 
 }
 
-// GetAnimation returns a pointer to an Animation of the desired name. If it can't
-// be found, it will return `nil`.
+// GetAnimation returns a pointer to an Animation of the desired name. If it can't be found, it will return nil.
 func (asf *File) GetAnimation(animName string) *Animation {
 
 	for index := range asf.Animations {
@@ -192,7 +187,7 @@ func (asf *File) HasAnimation(animName string) bool {
 	return asf.GetAnimation(animName) != nil
 }
 
-// GetSlice returns a Slice that has the name specified.
+// GetSlice returns a Slice that has the name specified. Note that a File can have multiple Slices by the same name.
 func (asf *File) GetSlice(sliceName string) *Slice {
 	for _, slice := range asf.Slices {
 		if slice.Name == sliceName {
@@ -243,7 +238,7 @@ func (asf *File) TouchingTag(tagName string) bool {
 	return false
 }
 
-// TouchingTags returns a list of tags the playback is touching.
+// TouchingTags returns a list of tags the playback is currently touching.
 func (asf *File) TouchingTags() []string {
 	anims := []string{}
 	for _, anim := range asf.Animations {
@@ -264,7 +259,7 @@ func (asf *File) HitTag(tagName string) bool {
 	return false
 }
 
-// HitTags returns a list of tags the File just touched.
+// HitTags returns a list of tags the File just touched by the file's playback on this frame.
 func (asf *File) HitTags() []string {
 	anims := []string{}
 
@@ -286,7 +281,7 @@ func (asf *File) LeftTag(tagName string) bool {
 	return false
 }
 
-// LeftTags returns a list of tags the File just left.
+// LeftTags returns a list of tags the File's playback just passed through on the last frame.
 func (asf *File) LeftTags() []string {
 	anims := []string{}
 
@@ -305,47 +300,47 @@ func (asf *File) FinishedAnimation() bool {
 	return asf.finishedAnimation
 }
 
-func readFile(filePath string) string {
+// Open will use os.Open() to open the Aseprite JSON file path specified to return a *goaseprite.File, relative to the current
+// working directory. This can be your starting point. Files created with Open() will put the JSON filepath used in
+// the returned File's Path field.
+func Open(jsonPath string) *File {
 
-	file, err := os.Open(filePath)
+	file, err := os.Open(jsonPath)
 
 	if err != nil {
-		panic(err)
+		log.Println(err)
 	}
 
-	scanner := bufio.NewScanner(file)
-
-	out := ""
-
-	for scanner.Scan() {
-		out += scanner.Text()
-	}
-
-	file.Close()
-
-	return out
+	asf := ReadFile(file)
+	asf.Path = jsonPath
+	return asf
 
 }
 
-// Load parses and returns an File for a supplied JSON exported from Aseprite. This is your starting point.
-// goaseprite is set up to read JSONs for sprite sheets exported with the Hash type.
-func Load(aseJSONFilePath string) *File {
+// ReadFile returns a *goaseprite.File for a given file handle, in case you are opening the file yourself from another
+// source (i.e. using the mobile asset package). This can also be your starting point,
+func ReadFile(file io.Reader) *File {
 
-	file := readFile(aseJSONFilePath)
+	scanner := bufio.NewScanner(file)
+
+	json := ""
+
+	for scanner.Scan() {
+		json += scanner.Text()
+	}
 
 	ase := &File{}
 	ase.Animations = make([]Animation, 0)
 	ase.PlaySpeed = 1
-	ase.Path = aseJSONFilePath
-	ase.ImagePath = filepath.Clean(gjson.Get(file, "meta.image").String())
+	ase.ImagePath = filepath.Clean(gjson.Get(json, "meta.image").String())
 
 	frameNames := []string{}
 
-	for _, key := range gjson.Get(file, "meta.layers").Array() {
+	for _, key := range gjson.Get(json, "meta.layers").Array() {
 		ase.Layers = append(ase.Layers, Layer{Name: key.Get("name").String(), Opacity: uint8(key.Get("opacity").Int()), BlendMode: key.Get("blendMode").String()})
 	}
 
-	for key := range gjson.Get(file, "frames").Map() {
+	for key := range gjson.Get(json, "frames").Map() {
 		frameNames = append(frameNames, key)
 	}
 
@@ -365,7 +360,7 @@ func Load(aseJSONFilePath string) *File {
 
 		frameName := key
 		frameName = strings.Replace(frameName, ".", `\.`, -1)
-		frameData := gjson.Get(file, "frames."+frameName)
+		frameData := gjson.Get(json, "frames."+frameName)
 
 		frame := Frame{}
 		frame.X = int32(frameData.Get("frame.x").Num)
@@ -381,7 +376,7 @@ func Load(aseJSONFilePath string) *File {
 
 	}
 
-	for _, anim := range gjson.Get(file, "meta.frameTags").Array() {
+	for _, anim := range gjson.Get(json, "meta.frameTags").Array() {
 
 		ase.Animations = append(ase.Animations, Animation{
 			Name:      anim.Get("name").Str,
@@ -391,7 +386,7 @@ func Load(aseJSONFilePath string) *File {
 
 	}
 
-	for _, sliceData := range gjson.Get(file, "meta.slices").Array() {
+	for _, sliceData := range gjson.Get(json, "meta.slices").Array() {
 
 		color, _ := strconv.ParseInt("0x"+sliceData.Get("color").Str[1:], 0, 64)
 
@@ -415,4 +410,5 @@ func Load(aseJSONFilePath string) *File {
 	}
 
 	return ase
+
 }
