@@ -2,7 +2,7 @@
 
 [GoDoc link](https://godoc.org/github.com/SolarLune/goaseprite)
 
-Hello! This is a JSON loader for Aseprite files written in / for Go.
+Hello! Goaseprite is a JSON loader for Aseprite files written in / for Go.
 
 ## How To Use
 
@@ -19,7 +19,7 @@ package main
 
 import (
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/solarlune/GoAseprite"
+	"github.com/solarlune/goaseprite"
 )
 
 
@@ -33,9 +33,9 @@ func NewPlayer() *Player {
 
     player := Player{}
     
-    // goaseprite.Open() returns an AsepriteFile, assuming it finds the JSON file. You can also use goaseprite.Read( io.Reader ) to read 
-    // in JSON info from data.
-    player.Ase = goaseprite.Open("assets/graphics/Player.json")
+    // goaseprite.ReadFile() returns an *goaseprite.File. You can also use goaseprite.ReadBytes( io.Reader ) to read 
+    // in JSON string data directly.
+    player.Ase = goaseprite.ReadFile("assets/graphics/Player.json")
     
     // Note that while File.ImagePath exists, it will be the absolute path to the image file as exported from Aseprite, so it's best to load 
     // the texture yourself using relative paths so you can distribute it for others' computers.

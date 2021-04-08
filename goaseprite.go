@@ -67,23 +67,26 @@ type Layer struct {
 // File contains all properties of an exported aseprite file. ImagePath is the absolute path to the image as reported by the exported
 // Aseprite JSON data. Path is the string used to open the File if it was opened with the Open() function; otherwise, it's blank.
 type File struct {
-	ImagePath         string
-	Path              string
-	FrameWidth        int32
-	FrameHeight       int32
-	Frames            []Frame
-	Animations        []Animation
-	Layers            []Layer
-	CurrentAnimation  *Animation
-	frameCounter      float32
-	CurrentFrame      int32
-	prevCurrentFrame  int32
-	PrevFrame         int32
-	PlaySpeed         float32
-	Playing           bool
-	Slices            []*Slice
-	pingpongedOnce    bool
-	finishedAnimation bool
+	ImagePath        string
+	Path             string
+	FrameWidth       int32
+	FrameHeight      int32
+	Frames           []Frame
+	Animations       []Animation
+	Layers           []Layer
+	CurrentAnimation *Animation
+	frameCounter     float32
+	CurrentFrame     int32
+	prevCurrentFrame int32
+	PrevFrame        int32
+	PlaySpeed        float32
+	Playing          bool
+	Slices           []*Slice
+	pingpongedOnce   bool
+	// FinishedAnimation returns true if the animation is finished playing. When playing forward or backward, it returns true on the
+	// frame that the File loops the animation (assuming the File gets Update() called every game frame). When playing using ping-pong,
+	// this function will return true when a full loop is finished (when the File plays forwards and then backwards, and loops again).
+	FinishedAnimation bool
 }
 
 // Play queues playback of the specified animation (assuming it's in the File).
@@ -94,7 +97,7 @@ func (asf *File) Play(animName string) {
 	}
 	if asf.CurrentAnimation != cur {
 		asf.CurrentAnimation = cur
-		asf.finishedAnimation = false
+		asf.FinishedAnimation = false
 		asf.CurrentFrame = asf.CurrentAnimation.Start
 		if asf.CurrentAnimation.Direction == PlayBackward {
 			asf.CurrentFrame = asf.CurrentAnimation.End
@@ -109,7 +112,7 @@ func (asf *File) Update(deltaTime float32) {
 	asf.PrevFrame = asf.prevCurrentFrame
 	asf.prevCurrentFrame = asf.CurrentFrame
 
-	asf.finishedAnimation = false
+	asf.FinishedAnimation = false
 
 	if asf.CurrentAnimation != nil {
 
@@ -144,7 +147,7 @@ func (asf *File) Update(deltaTime float32) {
 				}
 			} else {
 				asf.CurrentFrame = anim.Start
-				asf.finishedAnimation = true
+				asf.FinishedAnimation = true
 			}
 		}
 
@@ -152,7 +155,7 @@ func (asf *File) Update(deltaTime float32) {
 			if anim.Direction == PlayPingPong {
 				asf.pingpongedOnce = !asf.pingpongedOnce
 				asf.CurrentFrame = anim.Start + 1
-				asf.finishedAnimation = true
+				asf.FinishedAnimation = true
 
 				if asf.CurrentFrame > anim.End {
 					asf.CurrentFrame = anim.End
@@ -160,7 +163,7 @@ func (asf *File) Update(deltaTime float32) {
 
 			} else {
 				asf.CurrentFrame = anim.End
-				asf.finishedAnimation = true
+				asf.FinishedAnimation = true
 			}
 		}
 
@@ -293,17 +296,10 @@ func (asf *File) LeftTags() []string {
 	return anims
 }
 
-// FinishedAnimation returns true if the animation is finished playing. When playing forward or backward, it returns true on the
-// frame that the File loops the animation (assuming the File gets Update() called every game frame). When playing using ping-pong,
-// this function will return true when a full loop is finished (when the File plays forwards and then backwards, and loops again).
-func (asf *File) FinishedAnimation() bool {
-	return asf.finishedAnimation
-}
-
-// Open will use os.Open() to open the Aseprite JSON file path specified to return a *goaseprite.File, relative to the current
-// working directory. This can be your starting point. Files created with Open() will put the JSON filepath used in
+// ReadFile will use os.ReadFile() to open the Aseprite JSON file path specified to return a *goaseprite.File, relative to the current
+// working directory. This can be your starting point. Files created with ReadFile() will put the JSON filepath used in
 // the returned File's Path field.
-func Open(jsonPath string) *File {
+func ReadFile(jsonPath string) *File {
 
 	file, err := os.Open(jsonPath)
 
@@ -311,15 +307,15 @@ func Open(jsonPath string) *File {
 		log.Println(err)
 	}
 
-	asf := ReadFile(file)
+	asf := ReadBytes(file)
 	asf.Path = jsonPath
 	return asf
 
 }
 
-// ReadFile returns a *goaseprite.File for a given file handle, in case you are opening the file yourself from another
+// ReadBytes returns a *goaseprite.File for a given file handle, in case you are opening the file yourself from another
 // source (i.e. using the mobile asset package). This can also be your starting point,
-func ReadFile(file io.Reader) *File {
+func ReadBytes(file io.Reader) *File {
 
 	scanner := bufio.NewScanner(file)
 
