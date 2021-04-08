@@ -8,7 +8,7 @@ Hello! Goaseprite is a JSON loader for Aseprite files written in / for Go.
 
 Usage is pretty straightforward. You export a sprite sheet from Aseprite (Ctrl+E), with Output File and JSON data checked, and the values set to Hash with Frame Tags and Slices (optionally) on.
 
-Then you'll want to load the Aseprite data. To do this, you'll call `goaseprite.Open()` with a string argument of where to find the Aseprite JSON data file, or `goaseprite.ReadFile()` with the data itself in something that implements io.Reader. Either way, you'll get a `goaseprite.File`. It's from here that you control your animation.
+Then you'll want to load the Aseprite data. To do this, you'll call `goaseprite.ReadFile()` with a string argument of where to find the Aseprite JSON data file, or `goaseprite.ReadBytes()` with the data itself in something that implements io.Reader. Either way, you'll get a `goaseprite.File`. It's from here that you control your animation.
 
 After you have a File, you can just call the `File.Update()` function with an argument of delta time (the time between the previous frame and the current one) to get it updating. After that, use `File.Play()` to play an animation, and call `File.GetFrameXY()` to get the X and Y position of the current frame on the sprite sheet for where on the source sprite sheet to pull the frame of animation from. 
 
