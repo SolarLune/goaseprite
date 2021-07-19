@@ -1,73 +1,88 @@
 # goaseprite
 
-[GoDoc link](https://godoc.org/github.com/SolarLune/goaseprite)
+[pkg.go.dev link](https://pkg.go.dev/github.com/solarlune/goaseprite)
 
-Hello! Goaseprite is a JSON loader for Aseprite files written in / for Go.
+Goaseprite is a JSON loader for Aseprite files for Golang.
 
 ## How To Use
 
-Usage is pretty straightforward. You export a sprite sheet from Aseprite (Ctrl+E), with Output File and JSON data checked, and the values set to Hash with Frame Tags and Slices (optionally) on.
+Usage is pretty straightforward. You export a sprite sheet and its corresponding JSON data file from Aseprite (Ctrl+E). The values should be set to Hash with Frame Tags and Slices (optionally) on.
 
-Then you'll want to load the Aseprite data. To do this, you'll call `goaseprite.ReadFile()` with a string argument of where to find the Aseprite JSON data file, or `goaseprite.ReadBytes()` with the data itself in something that implements io.Reader. Either way, you'll get a `goaseprite.File`. It's from here that you control your animation.
+Then you'll want to load the Aseprite data. To do this, you'll call `goaseprite.Open()` with a string argument of where to find the Aseprite JSON data file, or manually pass the bytes to `goaseprite.Read()`. From this, you'll get a `*goaseprite.File`, which represents an Aseprite file. It's from here that you control your animation. You can just call `File.Play()` to play a tag / animation, and use the `File.Update()` function with an argument of delta time (the time between the previous frame and the current one) to update the animation. Call `File.CurrentFrame()` to get the current frame, which gives you the X and Y position of the current frame on the sprite sheet. Assuming a tag with a blank name ("") doesn't exist in your Aseprite file, `goaseprite` will create a default animation with that name, allowing you to easily play all of the frames in sequence.
 
-After you have a File, you can just call the `File.Update()` function with an argument of delta time (the time between the previous frame and the current one) to get it updating. After that, use `File.Play()` to play an animation, and call `File.GetFrameXY()` to get the X and Y position of the current frame on the sprite sheet for where on the source sprite sheet to pull the frame of animation from. 
-
-Here's a quick pseudo-example for a simple "Player" class using [raylib-go](https://github.com/gen2brain/raylib-go):
+Here'a quick example, using [ebiten](https://ebiten.org/) for rendering:
 
 ```go
 package main
 
 import (
-	rl "github.com/gen2brain/raylib-go/raylib"
+	"image"
+
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/solarlune/goaseprite"
+
+	_ "image/png"
 )
 
-
-type Player struct {
-    Ase         *goaseprite.File
-    Texture     rl.Texture2D
-    TextureRect rl.Rectangle
+type Game struct {
+	Sprite *goaseprite.File
+	Img    *ebiten.Image
 }
 
-func NewPlayer() *Player {
+func NewGame() *Game {
 
-    player := Player{}
-    
-    // goaseprite.ReadFile() returns an *goaseprite.File. You can also use goaseprite.ReadBytes( io.Reader ) to read 
-    // in JSON string data directly.
-    player.Ase = goaseprite.ReadFile("assets/graphics/Player.json")
-    
-    // Note that while File.ImagePath exists, it will be the absolute path to the image file as exported from Aseprite, so it's best to load 
-    // the texture yourself using relative paths so you can distribute it for others' computers.
-    player.Texture = rl.LoadTexture("assets/graphics/Player.png")
-    
-    // Set up the texture rectangle for drawing the sprite.
-    player.TextureRect = rl.Rectangle{0, 0, player.Ase.FrameWidth, player.Ase.FrameHeight}
-    
-    // Queues up the "Play" animation.
-    player.Ase.Play("Idle")
-    
-    return &player
-    
+	game := &Game{
+		Sprite: goaseprite.Open("16x16Deliveryman.json"),
+	}
+
+	img, _, err := ebitenutil.NewImageFromFile(game.Sprite.ImagePath)
+	if err != nil {
+		panic(err)
+	}
+
+    game.Sprite.Play("walk")
+
+	game.Img = img
+
+	return game
+
 }
 
-func (player *Player) Update() {
-    
-    // Call this every frame with the delta-time (time since the last frame); this will update the File's 
-    // currently playing animation.
-    player.Ase.Update(rl.GetFrameTime())
-    
-    // Set up the source rectangle for drawing the sprite (on the sprite sheet). File.GetFrameXY() will return the X and Y position
-    // of the current frame of animation for the File.
-    x, y := this.Ase.GetFrameXY()
-    player.TextureRect.X = float32(x)
-    player.TextureRect.Y = float32(y)
+func (game *Game) Update() error {
+
+	game.Sprite.Update(float32(1.0 / 60.0))
+
+	return nil
 }
 
-func (player *Player) Draw() {
-    // Draw it!
-    rl.DrawTextureRec(player.Texture, player.TextureRect, rl.Vector2{0, 0}, rl.White)
+func (game *Game) Draw(screen *ebiten.Image) {
+
+	opts := &ebiten.DrawImageOptions{}
+
+	srcX := 0
+	srcY := 0
+
+    // Could be nil if you don't immediately start playing an animation above
+	if game.Sprite.CurrentFrame() != nil {
+		srcX = game.Sprite.CurrentFrame().X
+		srcY = game.Sprite.CurrentFrame().Y
+	}
+
+	sub := game.Img.SubImage(image.Rect(srcX, srcY, srcX+16, srcY+16))
+
+	screen.DrawImage(sub.(*ebiten.Image), opts)
+
 }
+
+func (game *Game) Layout(w, h int) (int, int) { return 320, 180 }
+
+func main() {
+
+	ebiten.RunGame(NewGame())
+
+}
+
 
 ```
 
