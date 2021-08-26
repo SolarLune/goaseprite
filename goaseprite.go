@@ -235,7 +235,12 @@ func Open(jsonPath string) *File {
 	}
 
 	asf := Read(fileData)
+
 	asf.Path = jsonPath
+	// fix imagePath when using relative paths
+	dir := filepath.Dir(jsonPath)
+	asf.ImagePath = dir + "/" + asf.ImagePath
+
 	return asf
 
 }
