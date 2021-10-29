@@ -32,12 +32,17 @@ type Slice struct {
 	Color int64
 }
 
-// SliceKey represents a Slice's size and position in the Aseprite file. An individual Aseprite File can have multiple Slices inside,
-// which can also have multiple frames in which the Slice's position and size changes. The SliceKey's Frame indicates which frame the key is
-// operating on.
+// SliceKey represents a Slice's size and position in the Aseprite file on a specific frame. An individual Aseprite File can have multiple
+// Slices inside, which can also have multiple frames in which the Slice's position and size changes. The SliceKey's Frame indicates which
+// frame the key is operating on.
 type SliceKey struct {
 	Frame      int32
 	X, Y, W, H int
+}
+
+// Center returns the center X and Y position of the Slice in the current key.
+func (key SliceKey) Center() (int, int) {
+	return key.X + (key.W / 2), key.Y + (key.H / 2)
 }
 
 // Tag contains details regarding each tag or animation from Aseprite.
@@ -82,30 +87,36 @@ type File struct {
 	playDirection int
 }
 
-// Play sets the specified tag name up to be played back.
+// Play sets the specified tag name up to be played back. A tagName of "" will play back the entire file.
 func (file *File) Play(tagName string) {
 
-	if anim, exists := file.Tags[tagName]; exists && anim != file.CurrentTag {
+	if anim, exists := file.Tags[tagName]; exists {
 
-		if file.CurrentTag == nil {
-			file.PrevFrameIndex = -1
-		} else {
-			file.PrevFrameIndex = file.FrameIndex
+		if anim != file.CurrentTag {
+
+			if file.CurrentTag == nil {
+				file.PrevFrameIndex = -1
+			} else {
+				file.PrevFrameIndex = file.FrameIndex
+			}
+
+			file.CurrentTag = anim
+			file.frameCounter = 0
+
+			if anim.Direction == PlayBackward {
+				file.playDirection = -1
+				file.FrameIndex = file.CurrentTag.End
+			} else {
+				file.playDirection = 1
+				file.FrameIndex = file.CurrentTag.Start
+			}
+
+			file.pollTagChanges()
+
 		}
 
-		file.CurrentTag = anim
-		file.frameCounter = 0
-
-		if anim.Direction == PlayBackward {
-			file.playDirection = -1
-			file.FrameIndex = file.CurrentTag.End
-		} else {
-			file.playDirection = 1
-			file.FrameIndex = file.CurrentTag.Start
-		}
-
-		file.pollTagChanges()
-
+	} else {
+		panic("Error: tagName '" + tagName + "' doesn't exist")
 	}
 
 }
@@ -195,6 +206,18 @@ func (file *File) CurrentFrame() *Frame {
 	return nil
 }
 
+// CurrentFrameCoords returns the four corners of the current frame, of format (x1, y1, x2, y2). If File.CurrentFrame() is nil, it will instead
+// return all -1's.
+func (file *File) CurrentFrameCoords() (int, int, int, int) {
+
+	if frame := file.CurrentFrame(); frame != nil {
+		return frame.X, frame.Y, frame.X + int(file.Width), frame.Y + int(file.Height)
+	}
+
+	return -1, -1, -1, -1
+
+}
+
 // SetFrame sets the currently visible frame to frameIndex, using the playing animation as the range (so a frameIndex of 0 would set it to the first frame of an animation that is playing).
 func (file *File) SetFrame(frameIndex int) {
 
@@ -204,6 +227,7 @@ func (file *File) SetFrame(frameIndex int) {
 		if file.FrameIndex > file.CurrentTag.End {
 			file.FrameIndex = file.CurrentTag.End
 		}
+		file.frameCounter = 0
 
 	}
 
