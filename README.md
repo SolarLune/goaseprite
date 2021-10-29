@@ -8,7 +8,9 @@ Goaseprite is a JSON loader for Aseprite files for Golang.
 
 Usage is pretty straightforward. You export a sprite sheet and its corresponding JSON data file from Aseprite (Ctrl+E). The values should be set to Hash with Frame Tags and Slices (optionally) on.
 
-Then you'll want to load the Aseprite data. To do this, you'll call `goaseprite.Open()` with a string argument of where to find the Aseprite JSON data file, or manually pass the bytes to `goaseprite.Read()`. From this, you'll get a `*goaseprite.File`, which represents an Aseprite file. It's from here that you control your animation. You can just call `File.Play()` to play a tag / animation, and use the `File.Update()` function with an argument of delta time (the time between the previous frame and the current one) to update the animation. Call `File.CurrentFrame()` to get the current frame, which gives you the X and Y position of the current frame on the sprite sheet. Assuming a tag with a blank name ("") doesn't exist in your Aseprite file, `goaseprite` will create a default animation with that name, allowing you to easily play all of the frames in sequence.
+Then you'll want to load the Aseprite data. To do this, you'll call `goaseprite.Open()` with a string argument of where to find the Aseprite JSON data file, or manually pass the bytes to `goaseprite.Read()`. From this, you'll get a `*goaseprite.File`, which represents an Aseprite file. It's from here that you control your animation.
+
+You can call `File.Play()` to play a tag / animation, and use the `File.Update()` function with an argument of delta time (the time between the previous frame and the current one) to update the animation. Call `File.CurrentFrame()` to get the current frame, which gives you the X and Y position of the current frame on the sprite sheet. Assuming a tag with a blank name ("") doesn't exist in your Aseprite file, `goaseprite` will create a default animation with that name, allowing you to easily play all of the frames in sequence.
 
 Here'a quick example, using [ebiten](https://ebiten.org/) for rendering:
 
@@ -60,16 +62,7 @@ func (game *Game) Draw(screen *ebiten.Image) {
 
 	opts := &ebiten.DrawImageOptions{}
 
-	srcX := 0
-	srcY := 0
-
-    // Could be nil if you don't immediately start playing an animation above
-	if game.Sprite.CurrentFrame() != nil {
-		srcX = game.Sprite.CurrentFrame().X
-		srcY = game.Sprite.CurrentFrame().Y
-	}
-
-	sub := game.Img.SubImage(image.Rect(srcX, srcY, srcX+16, srcY+16))
+	sub := game.Img.SubImage(image.Rect(game.Sprite.CurrentFrameCoords()))
 
 	screen.DrawImage(sub.(*ebiten.Image), opts)
 
@@ -85,6 +78,8 @@ func main() {
 
 
 ```
+
+You also have the ability to use `File.OnLoop`, `File.OnFrameChange`, `File.OnTagEnter`, and `File.OnTagExit` callbacks to trigger events when an animation's state changes, for example. That's roughly it!
 
 ## Additional Notes
 

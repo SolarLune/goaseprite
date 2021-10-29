@@ -47,6 +47,8 @@ func NewGame() *Game {
 	ebiten.SetWindowTitle("goaseprite example")
 	ebiten.SetWindowResizable(true)
 
+	game.Sprite.Play("idle")
+
 	return game
 
 }
@@ -70,15 +72,7 @@ func (game *Game) Draw(screen *ebiten.Image) {
 
 	opts := &ebiten.DrawImageOptions{}
 
-	srcX := 0
-	srcY := 0
-
-	if game.Sprite.CurrentFrame() != nil {
-		srcX = game.Sprite.CurrentFrame().X
-		srcY = game.Sprite.CurrentFrame().Y
-	}
-
-	sub := game.Img.SubImage(image.Rect(srcX, srcY, srcX+16, srcY+16))
+	sub := game.Img.SubImage(image.Rect(game.Sprite.CurrentFrameCoords()))
 
 	screen.DrawImage(sub.(*ebiten.Image), opts)
 
