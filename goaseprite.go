@@ -65,18 +65,19 @@ type Layer struct {
 // File contains all properties of an exported aseprite file. ImagePath is the absolute path to the image as reported by the exported
 // Aseprite JSON data. Path is the string used to open the File if it was opened with the Open() function; otherwise, it's blank.
 type File struct {
-	Path           string          // Path to the file (exampleSprite.json); blank if the *File was loaded using Read().
-	ImagePath      string          // Path to the image associated with the Aseprite file (exampleSprite.png).
-	Width, Height  int32           // Overall width and height of the File.
-	Frames         []*Frame        // The animation Frames present in the File.
-	Tags           map[string]*Tag // A map of Tags, with their names being the keys.
-	Layers         []*Layer        // A slice of Layers.
-	Slices         []*Slice        // A slice of the Slices present in the file.
-	PlaySpeed      float32         // The playback speed; altering this can be used to globally slow down or speed up animation playback.
-	CurrentTag     *Tag            // The currently playing animation.
-	FrameIndex     int             // The current frame of the File's animation / tag playback.
-	PrevFrameIndex int             // The previous frame in the playback.
-	frameCounter   float32
+	Path                    string          // Path to the file (exampleSprite.json); blank if the *File was loaded using Read().
+	ImagePath               string          // Path to the image associated with the Aseprite file (exampleSprite.png).
+	Width, Height           int32           // Overall width and height of the File.
+	FrameWidth, FrameHeight int32           // Width and height of the frames in the File.
+	Frames                  []*Frame        // The animation Frames present in the File.
+	Tags                    map[string]*Tag // A map of Tags, with their names being the keys.
+	Layers                  []*Layer        // A slice of Layers.
+	Slices                  []*Slice        // A slice of the Slices present in the file.
+	PlaySpeed               float32         // The playback speed; altering this can be used to globally slow down or speed up animation playback.
+	CurrentTag              *Tag            // The currently playing animation.
+	FrameIndex              int             // The current frame of the File's animation / tag playback.
+	PrevFrameIndex          int             // The previous frame in the playback.
+	frameCounter            float32
 
 	// Callbacks
 	OnLoop        func()         // OnLoop gets called when the playing animation / tag does a complete loop. For a ping-pong animation, this is a full forward + back cycle.
@@ -211,7 +212,7 @@ func (file *File) CurrentFrame() *Frame {
 func (file *File) CurrentFrameCoords() (int, int, int, int) {
 
 	if frame := file.CurrentFrame(); frame != nil {
-		return frame.X, frame.Y, frame.X + int(file.Width), frame.Y + int(file.Height)
+		return frame.X, frame.Y, frame.X + int(file.FrameWidth), frame.Y + int(file.FrameHeight)
 	}
 
 	return -1, -1, -1, -1
@@ -277,6 +278,9 @@ func Read(fileData []byte) *File {
 
 	frameNames := []string{}
 
+	ase.Width = int32(gjson.Get(json, "meta.size.w").Num)
+	ase.Height = int32(gjson.Get(json, "meta.size.h").Num)
+
 	for _, key := range gjson.Get(json, "meta.layers").Array() {
 		ase.Layers = append(ase.Layers, &Layer{Name: key.Get("name").String(), Opacity: uint8(key.Get("opacity").Int()), BlendMode: key.Get("blendMode").String()})
 	}
@@ -311,9 +315,9 @@ func Read(fileData []byte) *File {
 		ase.Frames = append(ase.Frames, frame)
 
 		// We want to set it only on the first frame loaded
-		if ase.Width == 0 {
-			ase.Width = int32(frameData.Get("sourceSize.w").Num)
-			ase.Height = int32(frameData.Get("sourceSize.h").Num)
+		if ase.FrameWidth == 0 {
+			ase.FrameWidth = int32(frameData.Get("sourceSize.w").Num)
+			ase.FrameHeight = int32(frameData.Get("sourceSize.h").Num)
 		}
 
 	}
