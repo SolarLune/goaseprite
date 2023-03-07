@@ -29,6 +29,7 @@ import (
 
 type Game struct {
 	Sprite *goaseprite.File
+	Player *goaseprite.Player
 	Img    *ebiten.Image
 }
 
@@ -37,6 +38,7 @@ func NewGame() *Game {
 	game := &Game{
 		Sprite: goaseprite.Open("16x16Deliveryman.json"),
 	}
+	game.Player = goaseprite.NewPlayer(game.Sprite)
 
 	img, _, err := ebitenutil.NewImageFromFile(game.Sprite.ImagePath)
 	if err != nil {

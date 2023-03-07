@@ -11,8 +11,9 @@ import (
 )
 
 type Game struct {
-	Sprite *goaseprite.File
-	Img    *ebiten.Image
+	Sprite    *goaseprite.File
+	AsePlayer *goaseprite.Player
+	Img       *ebiten.Image
 }
 
 func NewGame() *Game {
@@ -20,6 +21,8 @@ func NewGame() *Game {
 	game := &Game{
 		Sprite: goaseprite.Open("16x16Deliveryman.json"),
 	}
+
+	game.AsePlayer = game.Sprite.CreatePlayer()
 
 	// There are four callback functions that you can use to watch for changes to the internal state of the *File.
 
@@ -47,7 +50,7 @@ func NewGame() *Game {
 	ebiten.SetWindowTitle("goaseprite example")
 	ebiten.SetWindowResizable(true)
 
-	game.Sprite.Play("idle")
+	game.AsePlayer.Play("idle")
 
 	return game
 
@@ -56,14 +59,14 @@ func NewGame() *Game {
 func (game *Game) Update() error {
 
 	if ebiten.IsKeyPressed(ebiten.Key1) {
-		game.Sprite.Play("idle")
+		game.AsePlayer.Play("idle")
 	} else if ebiten.IsKeyPressed(ebiten.Key2) {
-		game.Sprite.Play("walk")
+		game.AsePlayer.Play("walk")
 	} else if ebiten.IsKeyPressed(ebiten.Key3) {
-		game.Sprite.Play("") // Calling Play() with a blank string will play the full animation (similar to playing an animation in Aseprite without any tags selected).
+		game.AsePlayer.Play("") // Calling Play() with a blank string will play the full animation (similar to playing an animation in Aseprite without any tags selected).
 	}
 
-	game.Sprite.Update(float32(1.0 / 60.0))
+	game.AsePlayer.Update(float32(1.0 / 60.0))
 
 	return nil
 }
@@ -72,7 +75,7 @@ func (game *Game) Draw(screen *ebiten.Image) {
 
 	opts := &ebiten.DrawImageOptions{}
 
-	sub := game.Img.SubImage(image.Rect(game.Sprite.CurrentFrameCoords()))
+	sub := game.Img.SubImage(image.Rect(game.AsePlayer.CurrentFrameCoords()))
 
 	screen.DrawImage(sub.(*ebiten.Image), opts)
 
