@@ -3,8 +3,8 @@ package goaseprite
 
 import (
 	"errors"
-	"log"
-	"os"
+	"io"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -105,6 +105,22 @@ func (file *File) HasSlice(sliceName string) bool {
 	return exists
 }
 
+// TagByName returns a Tag by the name specified, and if the Tag was found.
+func (file *File) TagByName(tagName string) (Tag, bool) {
+	for _, t := range file.Tags {
+		if t.Name == tagName {
+			return t, true
+		}
+	}
+	return Tag{}, false
+}
+
+// HasTag returns if the File has a tag by the name specified.
+func (file *File) HasTag(tagName string) bool {
+	_, exists := file.TagByName(tagName)
+	return exists
+}
+
 // Player is an animation player for Aseprite files.
 type Player struct {
 	File           *File
@@ -113,10 +129,6 @@ type Player struct {
 	FrameIndex     int     // The current frame of the File's animation / tag playback.
 	PrevFrameIndex int     // The previous frame in the playback.
 	frameCounter   float32
-
-	updateRanFirst bool
-	prevUVX        float64
-	prevUVY        float64
 
 	// Callbacks
 	OnLoop        func()        // OnLoop gets called when the playing animation / tag does a complete loop. For a ping-pong animation, this is a full forward + back cycle.
@@ -208,8 +220,6 @@ func (player *Player) Update(dt float32) {
 		player.frameCounter += dt * player.PlaySpeed
 
 		frameDur := player.File.Frames[player.FrameIndex].Duration
-
-		player.prevUVX, player.prevUVY = player.CurrentUVCoords()
 
 		for player.frameCounter >= frameDur {
 
@@ -330,20 +340,9 @@ func (player *Player) CurrentUVCoords() (float64, float64) {
 
 }
 
-// CurrentUVCoordsDelta returns the current UV Coords as a coordinate movement delta.
-// For example, if an animation were to return the X-axis UV coordinates of :
-// [ 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5 ],
-// CurrentUVCoordsDelta would return [ 0, 0, 0, 0, 0.5, 0, 0, 0 ], as the UV coordinate
-// only changes on that one frame in the middle, from 0 to 0.5. Once it goes to the end,
-// it would return -0.5 to return back to the starting frame.
-func (player *Player) CurrentUVCoordsDelta() (float64, float64) {
-	currentX, currentY := player.CurrentUVCoords()
-	return currentX - player.prevUVX, currentY - player.prevUVY
-}
-
-// SetFrameIndex sets the currently visible frame to frameIndex, using the playing animation as the range.
-// This means calling SetFrameIndex with a frameIndex of 2 would set it to the third frame of the animation that is currently playing.
-func (player *Player) SetFrameIndex(frameIndex int) {
+// SetFrameIndexInAnimation sets the currently visible frame to frameIndex, using the playing animation as the range.
+// This means calling SetFrameIndexInAnimation with a frameIndex of 2 would set it to the third frame of the animation that is currently playing.
+func (player *Player) SetFrameIndexInAnimation(frameIndex int) {
 
 	if !player.CurrentTag.IsEmpty() {
 
@@ -368,23 +367,32 @@ func (player *Player) FrameIndexInAnimation() int {
 	return -1
 }
 
-// Open will use os.ReadFile() to open the Aseprite JSON file path specified to parse the data. Returns a *goaseprite.File.
+// Open will use the provided file system to open and parse an Aseprite JSON file. Returns a *goaseprite.File.
 // This can be your starting point. Files created with Open() will put the JSON filepath used in the Path field.
-func Open(jsonPath string) *File {
+func Open(jsonPath string, fs fs.FS) (*File, error) {
 
-	fileData, err := os.ReadFile(jsonPath)
+	// fileData, err := os.ReadFile(jsonPath)
+
+	fileData, err := fs.Open(jsonPath)
 
 	if err != nil {
-		log.Println(err)
+		return nil, err
 	}
 
-	asf := Read(fileData)
+	bytes, err := io.ReadAll(fileData)
+
+	if err != nil {
+		return nil, err
+	}
+
+	asf := Read(bytes)
 	asf.Path = jsonPath
-	return asf
+	return asf, nil
 
 }
 
 // Read returns a *goaseprite.File for a given sequence of bytes read from an Aseprite JSON file.
+// This function assumes a properly formed Aseprite JSON file.
 func Read(fileData []byte) *File {
 
 	json := string(fileData)
