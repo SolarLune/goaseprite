@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -18,8 +19,12 @@ type Game struct {
 
 func NewGame() *Game {
 
+	sprite, err := goaseprite.Open("16x16Deliveryman.json", os.DirFS("."))
+	if err != nil {
+		panic(err)
+	}
 	game := &Game{
-		Sprite: goaseprite.Open("16x16Deliveryman.json"),
+		Sprite: sprite,
 	}
 
 	game.AsePlayer = game.Sprite.CreatePlayer()
