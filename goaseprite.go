@@ -3,6 +3,7 @@ package goaseprite
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"path/filepath"
@@ -63,8 +64,8 @@ type Tag struct {
 	File       *File
 }
 
-func (tag Tag) IsEmpty() bool {
-	return tag.File == nil
+func (t *Tag) String() string {
+	return fmt.Sprintf("&%v", *t)
 }
 
 // Layer contains details regarding the layers exported from Aseprite, including the layer's name (string), opacity (0-255), and
@@ -78,63 +79,64 @@ type Layer struct {
 // File contains all properties of an exported aseprite file. ImagePath is the absolute path to the image as reported by the exported
 // Aseprite JSON data. Path is the string used to open the File if it was opened with the Open() function; otherwise, it's blank.
 type File struct {
-	Path                    string  // Path to the file (exampleSprite.json); blank if the *File was loaded using Read().
-	ImagePath               string  // Path to the image associated with the Aseprite file (exampleSprite.png).
-	Width, Height           int32   // Overall width and height of the File.
-	FrameWidth, FrameHeight int32   // Width and height of the frames in the File.
-	Frames                  []Frame // The animation Frames present in the File.
-	Tags                    []Tag   // A map of Tags, with their names being the keys.
-	Layers                  []Layer // A slice of Layers.
-	Slices                  []Slice // A slice of the Slices present in the file.
+	Path                    string   // Path to the file (exampleSprite.json); blank if the *File was loaded using Read().
+	ImagePath               string   // Path to the image associated with the Aseprite file (exampleSprite.png).
+	Width, Height           int32    // Overall width and height of the File.
+	FrameWidth, FrameHeight int32    // Width and height of the frames in the File.
+	Frames                  []*Frame // The animation Frames present in the File.
+	Tags                    []*Tag   // A map of Tags, with their names being the keys.
+	Layers                  []*Layer // A slice of Layers.
+	Slices                  []*Slice // A slice of the Slices present in the file.
 }
 
 // SliceByName returns a Slice that has the name specified and a boolean indicating whether it could be found or not.
 // Note that a File can have multiple Slices by the same name.
-func (file *File) SliceByName(sliceName string) (Slice, bool) {
+func (file *File) SliceByName(sliceName string) *Slice {
 	for _, slice := range file.Slices {
 		if slice.Name == sliceName {
-			return slice, true
+			return slice
 		}
 	}
-	return Slice{}, false
+	return nil
 }
 
 // HasSlice returns true if the File has a Slice of the specified name.
 func (file *File) HasSlice(sliceName string) bool {
-	_, exists := file.SliceByName(sliceName)
-	return exists
+	return file.SliceByName(sliceName) != nil
 }
 
 // TagByName returns a Tag by the name specified, and if the Tag was found.
-func (file *File) TagByName(tagName string) (Tag, bool) {
+func (file *File) TagByName(tagName string) *Tag {
 	for _, t := range file.Tags {
 		if t.Name == tagName {
-			return t, true
+			return t
 		}
 	}
-	return Tag{}, false
+	return nil
 }
 
 // HasTag returns if the File has a tag by the name specified.
 func (file *File) HasTag(tagName string) bool {
-	_, exists := file.TagByName(tagName)
-	return exists
+	return file.TagByName(tagName) != nil
 }
 
 // Player is an animation player for Aseprite files.
 type Player struct {
 	File           *File
 	PlaySpeed      float32 // The playback speed; altering this can be used to globally slow down or speed up animation playback.
-	CurrentTag     Tag     // The currently playing animation.
+	CurrentTag     *Tag    // The currently playing animation.
 	FrameIndex     int     // The current frame of the File's animation / tag playback.
 	PrevFrameIndex int     // The previous frame in the playback.
 	frameCounter   float32
 
 	// Callbacks
-	OnLoop        func()        // OnLoop gets called when the playing animation / tag does a complete loop. For a ping-pong animation, this is a full forward + back cycle.
-	OnFrameChange func()        // OnFrameChange gets called when the playing animation / tag changes frames.
-	OnTagEnter    func(tag Tag) // OnTagEnter gets called when entering a tag from "outside" of it (i.e. if not playing a tag and then it gets played, this gets called, or if you're playing a tag and you pass through another tag).
-	OnTagExit     func(tag Tag) // OnTagExit gets called when exiting a tag from inside of it (i.e. if you finish passing through a tag while playing another one).
+	OnLoop        func()         // OnLoop gets called when the playing animation / tag does a complete loop. For a ping-pong animation, this is a full forward + back cycle.
+	OnFrameChange func()         // OnFrameChange gets called when the playing animation / tag changes frames.
+	OnTagEnter    func(tag *Tag) // OnTagEnter gets called when entering a tag from "outside" of it (i.e. if not playing a tag and then it gets played, this gets called, or if you're playing a tag and you pass through another tag).
+	OnTagExit     func(tag *Tag) // OnTagExit gets called when exiting a tag from inside of it (i.e. if you finish passing through a tag while playing another one).
+
+	prevTouchingTags []*Tag
+	touchingTags     []*Tag
 
 	playDirection int
 }
@@ -176,7 +178,7 @@ func (player *Player) Play(tagName string) error {
 
 			if anim != player.CurrentTag {
 
-				if !player.CurrentTag.IsEmpty() {
+				if player.CurrentTag != nil {
 					player.PrevFrameIndex = -1
 				} else {
 					player.PrevFrameIndex = player.FrameIndex
@@ -213,9 +215,22 @@ func (player *Player) Play(tagName string) error {
 // Update updates the currently playing animation. dt is the delta value between the previous frame and the current frame.
 func (player *Player) Update(dt float32) {
 
+	player.prevTouchingTags = append(player.prevTouchingTags[:0], player.touchingTags...)
+
+	player.touchingTags = player.touchingTags[:0]
+
+	for _, t := range player.File.Tags {
+
+		// Add it, it's in the tags list
+		if player.FrameIndex >= t.Start && player.FrameIndex <= t.End {
+			player.touchingTags = append(player.touchingTags, t)
+		}
+
+	}
+
 	anim := player.CurrentTag
 
-	if !anim.IsEmpty() {
+	if anim != nil {
 
 		player.frameCounter += dt * player.PlaySpeed
 
@@ -258,33 +273,110 @@ func (player *Player) Update(dt float32) {
 				player.OnFrameChange()
 			}
 
-			player.pollTagChanges()
-
 		}
 
 	}
+
+	player.pollTagChanges()
 
 }
 
-// TouchingTags returns the tags currently being touched by the Player (tag).
-func (player *Player) TouchingTags() []Tag {
-	tags := []Tag{}
-	for _, t := range player.File.Tags {
-		if player.FrameIndex >= t.Start && player.FrameIndex <= t.End {
-			tags = append(tags, t)
-		}
-	}
+// TouchingTagsHeld returns the tags currently being touched by the Player (tag).
+func (player *Player) TouchingTagsHeld() []*Tag {
+	tags := append([]*Tag{}, player.touchingTags...)
 	return tags
 }
 
-// TouchingTagByName returns if a tag by the given name is being touched by the Player (tag).
-func (player *Player) TouchingTagByName(tagName string) bool {
-	for _, t := range player.File.Tags {
-		if t.Name == tagName && player.FrameIndex >= t.Start && player.FrameIndex <= t.End {
+// TouchingTagsPressed returns the tags that were just pressed by the Player (tag).
+func (player *Player) TouchingTagsPressed() []*Tag {
+
+	tags := append([]*Tag{}, player.touchingTags...)
+
+	for i := len(tags) - 1; i >= 0; i-- {
+		t1 := tags[i]
+		for _, t2 := range player.prevTouchingTags {
+			if t1 == t2 {
+				tags[i] = nil
+				tags = append(tags[i:], tags[i+1:]...)
+			}
+		}
+	}
+
+	return tags
+
+}
+
+// TouchingTagsReleased returns the tags that were just pressed by the Player (tag).
+func (player *Player) TouchingTagsReleased() []*Tag {
+
+	tags := append([]*Tag{}, player.prevTouchingTags...)
+
+	for i := len(tags) - 1; i >= 0; i-- {
+		t1 := tags[i]
+		for _, t2 := range player.touchingTags {
+			if t1 == t2 {
+				tags[i] = nil
+				tags = append(tags[i:], tags[i+1:]...)
+			}
+		}
+	}
+
+	return tags
+
+}
+
+// TouchingTagByNamePressed returns if the Aseprite Player's playback has just crossed a boundary of a tag / animation.
+func (player *Player) TouchingTagByNamePressed(tagName string) bool {
+
+	tNow := false
+	tPrev := false
+
+	for _, t := range player.touchingTags {
+		if t.Name == tagName {
+			tNow = true
+		}
+	}
+
+	for _, t := range player.prevTouchingTags {
+		if t.Name == tagName {
+			tPrev = true
+		}
+	}
+
+	return tNow && !tPrev
+
+}
+
+// TouchingTagByNameHeld returns if the Aseprite Player's playback is currently touching a tag / animation.
+func (player *Player) TouchingTagByNameHeld(tagName string) bool {
+	for _, t := range player.touchingTags {
+		if t.Name == tagName {
 			return true
 		}
 	}
 	return false
+}
+
+// TouchingTagByNameReleased returns if the Aseprite Player's playback has just left a tag / animation.
+func (player *Player) TouchingTagByNameReleased(tagName string) bool {
+
+	tNow := false
+	tPrev := false
+
+	for _, t := range player.touchingTags {
+		if t.Name == tagName {
+			tNow = true
+		}
+	}
+
+	for _, t := range player.prevTouchingTags {
+		if t.Name == tagName {
+			tPrev = true
+		}
+	}
+
+	return tPrev && !tNow
+
 }
 
 // pollTagChanges polls the File for tag changes (entering or exiting Tags).
@@ -309,18 +401,18 @@ func (player *Player) pollTagChanges() {
 }
 
 // CurrentFrame returns the current frame for the currently playing Tag in the File and a boolean indicating if the Player is playing a Tag or not.
-func (player *Player) CurrentFrame() (Frame, bool) {
-	if !player.CurrentTag.IsEmpty() {
-		return player.File.Frames[player.FrameIndex], true
+func (player *Player) CurrentFrame() *Frame {
+	if player.CurrentTag != nil {
+		return player.File.Frames[player.FrameIndex]
 	}
-	return Frame{}, false
+	return nil
 }
 
 // CurrentFrameCoords returns the four corners of the current frame, of format (x1, y1, x2, y2). If File.CurrentFrame() is nil, it will instead
 // return all -1's.
 func (player *Player) CurrentFrameCoords() (int, int, int, int) {
 
-	if frame, ok := player.CurrentFrame(); ok {
+	if frame := player.CurrentFrame(); frame != nil {
 		return frame.X, frame.Y, frame.X + int(player.File.FrameWidth), frame.Y + int(player.File.FrameHeight)
 	}
 
@@ -330,10 +422,10 @@ func (player *Player) CurrentFrameCoords() (int, int, int, int) {
 
 // CurrentUVCoords returns the top-left corner of the current frame, of format (x, y). If File.CurrentFrame() is nil, it will instead
 // return (-1, -1).
-func (player *Player) CurrentUVCoords() (float64, float64) {
+func (player *Player) CurrentUVCoords() (float32, float32) {
 
-	if frame, ok := player.CurrentFrame(); ok {
-		return float64(frame.X) / float64(player.File.Width), float64(frame.Y) / float64(player.File.Height)
+	if frame := player.CurrentFrame(); frame != nil {
+		return float32(frame.X) / float32(player.File.Width), float32(frame.Y) / float32(player.File.Height)
 	}
 
 	return -1, -1
@@ -344,7 +436,7 @@ func (player *Player) CurrentUVCoords() (float64, float64) {
 // This means calling SetFrameIndexInAnimation with a frameIndex of 2 would set it to the third frame of the animation that is currently playing.
 func (player *Player) SetFrameIndexInAnimation(frameIndex int) {
 
-	if !player.CurrentTag.IsEmpty() {
+	if player.CurrentTag != nil {
 
 		player.FrameIndex = player.CurrentTag.Start + frameIndex
 		if player.FrameIndex > player.CurrentTag.End {
@@ -361,7 +453,7 @@ func (player *Player) SetFrameIndexInAnimation(frameIndex int) {
 // regardless of what frame in the sprite strip that is).
 // If no animation is being played, this function will return -1.
 func (player *Player) FrameIndexInAnimation() int {
-	if !player.CurrentTag.IsEmpty() {
+	if player.CurrentTag != nil {
 		return player.FrameIndex - player.CurrentTag.Start
 	}
 	return -1
@@ -398,7 +490,7 @@ func Read(fileData []byte) *File {
 	json := string(fileData)
 
 	ase := &File{
-		Tags:      []Tag{},
+		Tags:      []*Tag{},
 		ImagePath: filepath.Clean(gjson.Get(json, "meta.image").String()),
 	}
 
@@ -408,7 +500,7 @@ func Read(fileData []byte) *File {
 	ase.Height = int32(gjson.Get(json, "meta.size.h").Num)
 
 	for _, key := range gjson.Get(json, "meta.layers").Array() {
-		ase.Layers = append(ase.Layers, Layer{Name: key.Get("name").String(), Opacity: uint8(key.Get("opacity").Int()), BlendMode: key.Get("blendMode").String()})
+		ase.Layers = append(ase.Layers, &Layer{Name: key.Get("name").String(), Opacity: uint8(key.Get("opacity").Int()), BlendMode: key.Get("blendMode").String()})
 	}
 
 	for key := range gjson.Get(json, "frames").Map() {
@@ -433,7 +525,7 @@ func Read(fileData []byte) *File {
 		frameName = strings.Replace(frameName, ".", `\.`, -1)
 		frameData := gjson.Get(json, "frames."+frameName)
 
-		frame := Frame{}
+		frame := &Frame{}
 		frame.X = int(frameData.Get("frame.x").Num)
 		frame.Y = int(frameData.Get("frame.y").Num)
 		frame.Duration = float32(frameData.Get("duration").Num) / 1000
@@ -449,7 +541,7 @@ func Read(fileData []byte) *File {
 	}
 
 	// Default ("") animation
-	ase.Tags = append(ase.Tags, Tag{
+	ase.Tags = append(ase.Tags, &Tag{
 		Name:      "",
 		Start:     0,
 		End:       len(ase.Frames) - 1,
@@ -460,7 +552,7 @@ func Read(fileData []byte) *File {
 	for _, anim := range gjson.Get(json, "meta.frameTags").Array() {
 
 		animName := anim.Get("name").Str
-		ase.Tags = append(ase.Tags, Tag{
+		ase.Tags = append(ase.Tags, &Tag{
 			Name:      animName,
 			Start:     int(anim.Get("from").Num),
 			End:       int(anim.Get("to").Num),
@@ -474,7 +566,7 @@ func Read(fileData []byte) *File {
 
 		color, _ := strconv.ParseInt("0x"+sliceData.Get("color").Str[1:], 0, 64)
 
-		newSlice := Slice{
+		newSlice := &Slice{
 			Name:  sliceData.Get("name").Str,
 			Data:  sliceData.Get("data").Str,
 			Color: color,
