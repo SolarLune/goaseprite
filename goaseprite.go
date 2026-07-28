@@ -420,12 +420,12 @@ func (player *Player) CurrentFrameCoords() (int, int, int, int) {
 
 }
 
-// CurrentUVCoords returns the top-left corner of the current frame, of format (x, y). If File.CurrentFrame() is nil, it will instead
+// CurrentUVCoords returns the top-left corner of the current frame, of format (x, y (inverted)). If File.CurrentFrame() is nil, it will instead
 // return (-1, -1).
 func (player *Player) CurrentUVCoords() (float32, float32) {
 
 	if frame := player.CurrentFrame(); frame != nil {
-		return float32(frame.X) / float32(player.File.Width), float32(frame.Y) / float32(player.File.Height)
+		return float32(frame.X) / float32(player.File.Width), -float32(frame.Y) / float32(player.File.Height)
 	}
 
 	return -1, -1
